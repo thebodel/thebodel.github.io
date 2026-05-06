@@ -1,0 +1,321 @@
+@font-face {
+    font-family: "Minecraft Rus";
+    src: url("./fonts/MinecraftRus.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #000;
+    color: #fff;
+    font-family: "Minecraft Rus", monospace;
+    cursor: default;
+    overflow: hidden;
+}
+
+.scene {
+    position: fixed;
+    inset: 0;
+    transition: opacity 520ms ease;
+}
+
+.scene.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.scene--terminal {
+    position: relative;
+    z-index: 1;
+}
+
+.scene--cake {
+    display: grid;
+    place-items: center start;
+    z-index: 2;
+}
+
+.heart-burst {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 5;
+}
+
+.heart-burst__item {
+    position: absolute;
+    width: var(--heart-size, 28px);
+    height: var(--heart-size, 28px);
+    left: 0;
+    top: 0;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transform: translate3d(var(--heart-x), var(--heart-y), 0) scale(0.6);
+    opacity: 0;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    filter: none;
+    animation: heart-burst-fly var(--heart-duration, 9000ms) ease-out forwards;
+}
+
+.terminal {
+    width: min(900px, 100vw);
+    min-height: 100vh;
+    padding: 15px;
+    position: relative;
+}
+
+.terminal-output {
+    overflow: auto;
+    white-space: pre-wrap;
+    line-height: 1.55;
+    max-height: 100vh;
+}
+
+.line {
+    margin: 0 0 7px;
+}
+
+.terminal-image-frame {
+    position: relative;
+    display: inline-block;
+    width: 200px;
+    max-width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #060606;
+}
+
+.terminal-image {
+    max-width: 100%;
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: inherit;
+    opacity: 0;
+    transform: scale(1.015);
+    animation: image-in 420ms ease-out both;
+    transition:
+        opacity 260ms ease-out,
+        transform 380ms ease-out;
+}
+
+.terminal-image.is-ready {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.terminal-image__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 2;
+    border-radius: inherit;
+    image-rendering: pixelated;
+    opacity: 1;
+    transition: opacity 260ms ease-out;
+}
+
+.terminal-image__canvas.is-finished {
+    opacity: 0;
+}
+
+.cursor {
+    width: 5px;
+    height: 1em;
+    display: inline-block;
+    margin-left: 5px;
+    vertical-align: -2px;
+    background: #fff;
+    animation: blink 1s steps(1, end) infinite;
+}
+
+.ascii-trail {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 4;
+}
+
+.ascii-trail__glyph {
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 20px;
+    line-height: 1;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.18);
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    transform-origin: center;
+    will-change: transform, opacity;
+    animation: ascii-trail-fade 820ms ease-out forwards;
+}
+
+.cake-layout {
+    width: min(100vw, 1380px);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(0, 960px) minmax(180px, 1fr);
+    align-items: center;
+    gap: clamp(12px, 3vw, 56px);
+    position: relative;
+    z-index: 2;
+}
+
+.cake-stage {
+    position: relative;
+    width: min(100vw, 960px);
+    height: min(100vh, 720px);
+    display: grid;
+    place-items: center;
+    margin-left: 0;
+    justify-self: start;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.cake-title {
+    align-self: center;
+    justify-self: start;
+    padding-right: clamp(12px, 4vw, 48px);
+    color: #fff;
+    text-transform: uppercase;
+    text-align: center;
+    text-shadow:
+        0 0 12px rgba(255, 255, 255, 0.2),
+        0 0 28px rgba(255, 255, 255, 0.1);
+}
+
+.cake-title__line {
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 5.8rem);
+    line-height: 0.9;
+    letter-spacing: 0.06em;
+}
+
+.cake-title__line + .cake-title__line {
+    margin-top: 0.22em;
+}
+
+.cake-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transform: scale(1.03);
+    transform-origin: center;
+}
+
+.cake-video.is-visible {
+    opacity: 1;
+}
+
+@media (max-width: 980px) {
+    .scene--cake {
+        place-items: center;
+    }
+
+    .cake-layout {
+        width: 100%;
+        padding: 24px 16px 32px;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        justify-items: start;
+    }
+
+    .cake-stage {
+        width: min(100%, 960px);
+        height: min(68vh, 720px);
+    }
+
+    .cake-title {
+        padding-right: 0;
+    }
+
+    .cake-title__line {
+        font-size: clamp(2rem, 10vw, 4rem);
+    }
+}
+
+@keyframes blink {
+    0%, 49% {
+        opacity: 1;
+    }
+    50%, 100% {
+        opacity: 0;
+    }
+}
+
+@keyframes image-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes ascii-trail-fade {
+    0% {
+        opacity: 0.95;
+        transform: translate3d(var(--trail-x), var(--trail-y), 0)
+            rotate(var(--trail-rotation, 0deg))
+            scale(var(--trail-scale, 1));
+    }
+    100% {
+        opacity: 0;
+        transform: translate3d(
+            calc(var(--trail-x) + var(--trail-drift-x)),
+            calc(var(--trail-y) + var(--trail-drift-y)),
+            0
+        )
+            rotate(calc(var(--trail-rotation, 0deg) * 1.35))
+            scale(calc(var(--trail-scale, 1) * 0.45));
+    }
+}
+
+@keyframes heart-burst-fly {
+    0% {
+        opacity: 0;
+        transform: translate3d(var(--heart-x), var(--heart-y), 0) scale(0.2);
+    }
+    18% {
+        opacity: 0.9;
+        transform: translate3d(
+            calc(var(--heart-x) + (var(--heart-drift-x) * 0.28)),
+            calc(var(--heart-y) + (var(--heart-drift-y) * 0.28)),
+            0
+        ) rotate(calc(var(--heart-rotate, 0deg) * 0.35)) scale(1);
+    }
+    72% {
+        opacity: 0.72;
+        transform: translate3d(
+            calc(var(--heart-x) + (var(--heart-drift-x) * 0.82)),
+            calc(var(--heart-y) + (var(--heart-drift-y) * 0.82)),
+            0
+        ) rotate(calc(var(--heart-rotate, 0deg) * 0.8)) scale(0.96);
+    }
+    100% {
+        opacity: 0.42;
+        transform: translate3d(
+            calc(var(--heart-x) + var(--heart-drift-x)),
+            calc(var(--heart-y) + var(--heart-drift-y)),
+            0
+        ) rotate(var(--heart-rotate, 0deg)) scale(0.9);
+    }
+}

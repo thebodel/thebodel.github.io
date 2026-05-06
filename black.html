@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black Screen</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        body {
+            display: grid;
+            place-items: center start;
+        }
+
+        .cake-stage {
+            position: relative;
+            width: min(100vw, 960px);
+            height: min(100vh, 720px);
+            display: grid;
+            place-items: center;
+            margin-left: 0;
+            justify-self: start;
+        }
+
+        .cake-video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            opacity: 0;
+        }
+
+        .cake-video.is-visible {
+            opacity: 1;
+        }
+
+        .ascii-trail {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 3;
+        }
+
+        .ascii-trail__glyph {
+            position: absolute;
+            top: 0;
+            left: 0;
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 20px;
+            line-height: 1;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.18);
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+            transform-origin: center;
+            will-change: transform, opacity;
+            animation: ascii-trail-fade 820ms ease-out forwards;
+        }
+
+        @keyframes ascii-trail-fade {
+            0% {
+                opacity: 0.95;
+                transform: translate3d(var(--trail-x), var(--trail-y), 0)
+                    rotate(var(--trail-rotation, 0deg))
+                    scale(var(--trail-scale, 1));
+            }
+            100% {
+                opacity: 0;
+                transform: translate3d(
+                    calc(var(--trail-x) + var(--trail-drift-x)),
+                    calc(var(--trail-y) + var(--trail-drift-y)),
+                    0
+                )
+                    rotate(calc(var(--trail-rotation, 0deg) * 1.35))
+                    scale(calc(var(--trail-scale, 1) * 0.45));
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="cake-stage" aria-label="Торт со свечами">
+        <video
+            id="burningCake"
+            class="cake-video is-visible"
+            src="img/Comp 1_1.mp4"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="auto"
+        ></video>
+        <video
+            id="extinguishCake"
+            class="cake-video"
+            src="img/Comp 1.mp4"
+            muted
+            playsinline
+            preload="auto"
+        ></video>
+    </main>
+    <audio id="introSound" src="audio/SpotiDownloader.com - Cat - C418.mp3" preload="auto"></audio>
+    <script>
+        const burningCake = document.getElementById("burningCake");
+        const extinguishCake = document.getElementById("extinguishCake");
+        const introSound = document.getElementById("introSound");
+        const introSoundStartTime = 56;
+        const introSoundFadeDuration = 4000;
+        const asciiTrailChars = [".", ":", "*", "+", "~", "`", "^", "o", "x", "#", "%", "=", "-", "/"];
+        const asciiTrailMinDistance = 6;
+        const asciiTrailSpawnInterval = 12;
+        const asciiTrailStepDistance = 8;
+        let extinguishingStarted = false;
+        let listeningStarted = false;
+        let introSoundStarted = false;
+        let introSoundFadeFrame = null;
+        let asciiTrailLayer = null;
+        let lastTrailPoint = null;
+        let lastTrailSpawnAt = 0;
+        let blowFrames = 0;
+        let noiseFloor = 0.015;
+        let flatnessFloor = 0.45;
+        const calibrationDuration = 1500;
+        const minBlowVolume = 0.018;
+        const blowMultiplier = 2.4;
+        const minFlatness = 0.58;
+        const flatnessBoost = 0.12;
+        const requiredBlowFrames = 6;
+
+        function playVideo(video) {
+            const playPromise = video.play();
+
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.catch(() => {});
+            }
+        }
+
+        playVideo(burningCake);
+
+        function ensureAsciiTrailLayer() {
+            if (asciiTrailLayer) {
+                return asciiTrailLayer;
+            }
+
+            asciiTrailLayer = document.createElement("div");
+            asciiTrailLayer.className = "ascii-trail";
+            asciiTrailLayer.setAttribute("aria-hidden", "true");
+            document.body.appendChild(asciiTrailLayer);
+            return asciiTrailLayer;
+        }
+
+        function spawnAsciiTrailGlyph(x, y) {
+            const layer = ensureAsciiTrailLayer();
+            const glyph = document.createElement("span");
+            const driftX = (Math.random() - 0.5) * 34;
+            const driftY = (-10 - (Math.random() * 28));
+            const rotation = (Math.random() - 0.5) * 34;
+            const scale = 0.85 + (Math.random() * 0.55);
+
+            glyph.className = "ascii-trail__glyph";
+            glyph.textContent = asciiTrailChars[Math.floor(Math.random() * asciiTrailChars.length)];
+            glyph.style.setProperty("--trail-x", `${x}px`);
+            glyph.style.setProperty("--trail-y", `${y}px`);
+            glyph.style.setProperty("--trail-drift-x", `${driftX}px`);
+            glyph.style.setProperty("--trail-drift-y", `${driftY}px`);
+            glyph.style.setProperty("--trail-rotation", `${rotation}deg`);
+            glyph.style.setProperty("--trail-scale", String(scale));
+
+            layer.appendChild(glyph);
+            glyph.addEventListener("animationend", () => {
+                glyph.remove();
+            }, { once: true });
+        }
+
+        function handlePointerTrail(event) {
+            const now = performance.now();
+            const point = { x: event.clientX, y: event.clientY };
+
+            if (lastTrailPoint) {
+                const dx = point.x - lastTrailPoint.x;
+                const dy = point.y - lastTrailPoint.y;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance < asciiTrailMinDistance || (now - lastTrailSpawnAt) < asciiTrailSpawnInterval) {
+                    return;
+                }
+
+                const steps = Math.max(1, Math.floor(distance / asciiTrailStepDistance));
+
+                for (let i = 1; i <= steps; i += 1) {
+                    const progress = i / steps;
+                    spawnAsciiTrailGlyph(
+                        lastTrailPoint.x + (dx * progress),
+                        lastTrailPoint.y + (dy * progress)
+                    );
+                }
+            } else {
+                spawnAsciiTrailGlyph(point.x, point.y);
+            }
+
+            lastTrailPoint = point;
+            lastTrailSpawnAt = now;
+        }
+
+        function playIntroSoundOnce() {
+            if (!introSound || introSoundStarted) {
+                return;
+            }
+
+            introSound.volume = 0;
+            const startPlayback = () => {
+                introSound.currentTime = introSoundStartTime;
+                const playPromise = introSound.play();
+
+                if (playPromise && typeof playPromise.then === "function") {
+                    playPromise
+                        .then(() => {
+                            introSoundStarted = true;
+                            fadeInIntroSound();
+                        })
+                        .catch(() => {});
+                    return;
+                }
+
+                introSoundStarted = true;
+                fadeInIntroSound();
+            };
+
+            if (introSound.readyState >= 1) {
+                startPlayback();
+                return;
+            }
+
+            introSound.addEventListener("loadedmetadata", startPlayback, { once: true });
+            introSound.load();
+        }
+
+        function fadeInIntroSound() {
+            if (!introSound) {
+                return;
+            }
+
+            if (introSoundFadeFrame !== null) {
+                cancelAnimationFrame(introSoundFadeFrame);
+            }
+
+            const startedAt = performance.now();
+
+            function step(now) {
+                const progress = Math.min((now - startedAt) / introSoundFadeDuration, 1);
+                introSound.volume = progress;
+
+                if (progress < 1) {
+                    introSoundFadeFrame = requestAnimationFrame(step);
+                    return;
+                }
+
+                introSoundFadeFrame = null;
+            }
+
+            introSoundFadeFrame = requestAnimationFrame(step);
+        }
+
+        function extinguishCandles() {
+            if (extinguishingStarted) {
+                return;
+            }
+
+            extinguishingStarted = true;
+            extinguishCake.currentTime = 0;
+            extinguishCake.classList.add("is-visible");
+            burningCake.pause();
+            burningCake.classList.remove("is-visible");
+            playVideo(extinguishCake);
+        }
+
+        async function listenForBlow() {
+            if (listeningStarted) {
+                return;
+            }
+
+            listeningStarted = true;
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                listeningStarted = false;
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                    },
+                });
+
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    listeningStarted = false;
+                    return;
+                }
+
+                const audioContext = new AudioContext();
+                await audioContext.resume();
+
+                const microphone = audioContext.createMediaStreamSource(stream);
+                const highpass = audioContext.createBiquadFilter();
+                const analyser = audioContext.createAnalyser();
+
+                highpass.type = "highpass";
+                highpass.frequency.value = 1400;
+                highpass.Q.value = 0.7;
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.65;
+                const timeSamples = new Float32Array(analyser.fftSize);
+                const frequencySamples = new Uint8Array(analyser.frequencyBinCount);
+                const calibrationStartedAt = performance.now();
+
+                microphone.connect(highpass);
+                highpass.connect(analyser);
+
+                function getBandRange(sampleRate, fftSize, minHz, maxHz, binCount) {
+                    const hzPerBin = sampleRate / fftSize;
+                    const start = Math.max(0, Math.floor(minHz / hzPerBin));
+                    const end = Math.min(binCount - 1, Math.ceil(maxHz / hzPerBin));
+                    return { start, end };
+                }
+
+                const blowBand = getBandRange(
+                    audioContext.sampleRate,
+                    analyser.fftSize,
+                    1400,
+                    9000,
+                    analyser.frequencyBinCount
+                );
+
+                function getRms(samples) {
+                    let sum = 0;
+
+                    for (const sample of samples) {
+                        sum += sample * sample;
+                    }
+
+                    return Math.sqrt(sum / samples.length);
+                }
+
+                function getSpectralFlatness(samples, startBin, endBin) {
+                    let logSum = 0;
+                    let linearSum = 0;
+                    let count = 0;
+
+                    for (let i = startBin; i <= endBin; i += 1) {
+                        const energy = (samples[i] / 255) + 1e-6;
+                        logSum += Math.log(energy);
+                        linearSum += energy;
+                        count += 1;
+                    }
+
+                    if (count === 0 || linearSum === 0) {
+                        return 0;
+                    }
+
+                    const geometricMean = Math.exp(logSum / count);
+                    const arithmeticMean = linearSum / count;
+                    return geometricMean / arithmeticMean;
+                }
+
+                function checkVolume() {
+                    if (extinguishingStarted) {
+                        stream.getTracks().forEach((track) => track.stop());
+                        audioContext.close();
+                        return;
+                    }
+
+                    if (audioContext.state === "suspended") {
+                        audioContext.resume().catch(() => {});
+                    }
+
+                    analyser.getFloatTimeDomainData(timeSamples);
+                    analyser.getByteFrequencyData(frequencySamples);
+
+                    const volume = getRms(timeSamples);
+                    const flatness = getSpectralFlatness(
+                        frequencySamples,
+                        blowBand.start,
+                        blowBand.end
+                    );
+                    const isCalibrating = (performance.now() - calibrationStartedAt) < calibrationDuration;
+
+                    if (isCalibrating) {
+                        noiseFloor = (noiseFloor * 0.92) + (volume * 0.08);
+                        flatnessFloor = (flatnessFloor * 0.92) + (flatness * 0.08);
+                        requestAnimationFrame(checkVolume);
+                        return;
+                    }
+
+                    const blowThreshold = Math.max(minBlowVolume, noiseFloor * blowMultiplier);
+                    const flatnessThreshold = Math.max(minFlatness, flatnessFloor + flatnessBoost);
+                    const isBlowing = volume > blowThreshold && flatness > flatnessThreshold;
+
+                    if (isBlowing) {
+                        blowFrames += 1;
+                    } else {
+                        blowFrames = 0;
+                        noiseFloor = (noiseFloor * 0.97) + (volume * 0.03);
+                        flatnessFloor = (flatnessFloor * 0.97) + (flatness * 0.03);
+                    }
+
+                    if (blowFrames >= requiredBlowFrames) {
+                        extinguishCandles();
+                        return;
+                    }
+
+                    requestAnimationFrame(checkVolume);
+                }
+
+                checkVolume();
+            } catch (error) {
+                listeningStarted = false;
+                // Space still works if microphone access is blocked.
+            }
+        }
+
+        playIntroSoundOnce();
+        listenForBlow();
+        document.addEventListener("pointermove", handlePointerTrail);
+        document.addEventListener("pointerdown", playIntroSoundOnce, { once: true });
+        document.addEventListener("keydown", playIntroSoundOnce, { once: true });
+        document.addEventListener("pointerdown", listenForBlow, { once: true });
+        document.addEventListener("keydown", listenForBlow, { once: true });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.code !== "Space") {
+                return;
+            }
+
+            event.preventDefault();
+            extinguishCandles();
+        });
+
+        document.addEventListener("pointerup", (event) => {
+            if (event.pointerType === "mouse") {
+                return;
+            }
+
+            event.preventDefault();
+            extinguishCandles();
+        });
+    </script>
+</body>
+</html>
