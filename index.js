@@ -1,5 +1,5 @@
 const messages = [
-    { type: "text", content: "Привіт, нажми пробел або тапни" },
+    { type: "text", content: "Привіт, нажми пробел" },
     { type: "image", content: "img/privit.jpg" },
 ];
 
