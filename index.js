@@ -229,7 +229,9 @@ function playIntroSoundOnce() {
                         introSoundFadeFrame = frameId;
                     });
                 })
-                .catch(() => {});
+                .catch((error) => {
+                    console.warn("Intro sound could not be played.", error);
+                });
             return;
         }
 
@@ -650,9 +652,8 @@ function showCakeScene() {
 }
 
 printNextMessage();
-playIntroSoundOnce();
 
-document.addEventListener("click", playIntroSoundOnce, { once: true });
+document.addEventListener("pointerdown", playIntroSoundOnce, { once: true });
 document.addEventListener("keydown", playIntroSoundOnce, { once: true });
 document.addEventListener("pointermove", handlePointerTrail);
 
