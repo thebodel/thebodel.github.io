@@ -37,6 +37,7 @@ const heartBurstImage = "img/13-132546_zelda-clipart-minecraft-minecraft-heart-p
 let clickCount = 0;
 let messageIndex = 0;
 let sceneTransitionStarted = false;
+let introStarted = false;
 let introSoundPlayed = false;
 let cakeSoundStarted = false;
 let isTyping = false;
@@ -651,10 +652,6 @@ function showCakeScene() {
     cakeScene.classList.remove("is-hidden");
 }
 
-printNextMessage();
-
-document.addEventListener("pointerdown", playIntroSoundOnce, { once: true });
-document.addEventListener("keydown", playIntroSoundOnce, { once: true });
 document.addEventListener("pointermove", handlePointerTrail);
 
 function handleProgressInput(event) {
@@ -669,6 +666,14 @@ function handleProgressInput(event) {
     }
 
     event.preventDefault();
+
+    if (!introStarted) {
+        introStarted = true;
+        playIntroSoundOnce();
+        printNextMessage();
+        return;
+    }
+
     clickCount += 1;
 
     if (clickCount >= redirectClick) {
@@ -688,9 +693,5 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("pointerup", (event) => {
-    if (event.pointerType === "mouse") {
-        return;
-    }
-
     handleProgressInput(event);
 });
